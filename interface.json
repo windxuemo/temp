@@ -1,0 +1,380 @@
+//web: http://webip:port
+//work: http://workip:port
+//=========================================================
+//===========1.上传文件同步接口=============================
+//工作流程：一次交互，以web向work服务器主动发起请求开始，work即时回复响应结束
+//web->work web向业务服务器的接口 http://workip:port/dispatch/down  
+//通过POST 方法 发送如下请求
+{
+    "path":"/dowanload/a.exe", //标识web服务器的文件下载路径
+    "hash":"asdasdsadas", //文件hash用于确保鉴定文件传输过程中的唯一性
+    "id":"01",      // 唯一标识
+    "action":"down", //表明该文件的用处
+    "token": "xxxx" //用于鉴权
+}
+//work 服务器回复响应
+//正常 成功的响应如下
+{
+    "id": "01",  //对应标识
+    "status":"1" // status =1 表明，文件同步成功
+}
+// 错误的响应如下
+{
+    "id": "01",  //对应标识
+    "status":"ID重复!" // 表明，文件存在重复的id
+}
+{
+    "id": "01",  //对应标识
+    "status":"KeyError!" // 表明提交的响应不合规
+}
+//=================== E N D ================================
+
+//=========================================================
+//===========2.自动化安装接口=============================
+//工作流程：两次交互，第一次指示业务服务器开始自动化安装，第二次业务服务器安装完成后向WEB服务器提交安装后的结果
+//第一次交互:以web向work服务器主动发起请求开始，work即时回复响应结束
+//第二次交互:以work服务器主动发起请求开始，web即时回复响应结束
+//==============第一次交互===============================
+//web->work web向业务服务器的接口 http://workip:port/dispatch/install 
+//通过POST 方法 发送如下请求
+{   
+    "token":"1",  //用于鉴权
+    "id":"123",   // 唯一标识
+    "action":"install"  //指示work服务器开始自动化安装
+}
+//work 服务器即使回复响应
+//正常 成功的响应如下
+{
+    "id": "01",  //对应标识
+    "status":"1", // status =1 表明收到消息正在启动自动化安装
+    "action":"install" //标识自动化安装
+}
+// 错误的响应如下
+{
+    "id": "01",  //对应标识
+    "status":"KeyError!" // 表明提交的响应不合规
+}
+//===============第二次交互===============================
+// work->web 在work服务器完成自动化安装后(安装时间不确定)
+// 向WEB服务器接口 http://webip:port/api/ReceiveData/InsertData
+// 通过POST方法 发送如下请求
+{
+    "id":"01",
+    "status":"0/1",//0 代表安装失败,1代表安装成功
+    "action":"install",
+    "result":[
+        "c:/123",
+        "c:/test/path"
+    ] //result 代表安装后释放的可执行文件
+}
+// WEB 服务器即时回复响应
+//正常 成功的响应如下
+{
+    "token":"test_token",
+    "info":"ok"
+}
+//=================== E N D ================================
+
+//=========================================================
+//===========2.静态漏洞扫描接口=============================
+//工作流程：两次交互，第一次WEB服务器指示业务服务器开始静态漏洞扫描，第二次业务服务器完成漏洞扫描工作后向WEB服务器提交扫描后的结果
+//第一次交互:以web向work服务器主动发起请求开始，work即时回复响应结束
+//第二次交互:以work服务器主动发起请求开始，web即时回复响应结束
+//==============第一次交互===============================
+// web->work  web向work服务器接口 http://workip:port/dispatch/dector
+// 通过POST方法 发送请求，请求有扫描母体和扫描子体两种。
+// 下面是扫描母体的请求
+{   
+    "id":"01", //任务id
+    "action":"static", //指示业务服务器开始进行静态扫描
+    //没有target字段，代表扫描母体
+}
+//下面是扫描子体的请求
+{
+    "id": "01", //
+    "action":"static", //指示业务服务器开始进行静态扫描
+    "target": [
+        {
+            "fId": "01-1", //子体ID
+            "fPath": "c:/123.exe"
+        },
+        {
+            "fId": "01-2", //子体ID
+            "fPath": "c:/123.dll"
+        }
+    ]
+}
+// 正常 成功的响应如下
+{
+    "id":"01",
+    "action":"static", //对应静态扫描的动作
+    "status":"1", //开始进行扫描
+}
+//==============第二次交互===============================
+//work->web 静态扫描完成后，业务服务器向WEB服务器反馈结果
+//work服务器向 web接口地址：http://webip:port/api/ReceiveData/ScanData
+//通过POST方法 发送如下请求
+/* 各个字段解释如下
+moduleSet：被测项目包含的组件名称列表
+bugSetHigh：被测项目包含的高威胁漏洞列表
+bugSetMiddle：被测项目包含的中威胁漏洞列表
+bugSetLow：被测项目包含的低威胁漏洞列表
+moduleList：被测项目包含的组件列表详细信息
+module_name：组件名称
+module_version：组件版本
+module_bugcount：组件漏洞数目
+bug_high：高威胁漏洞数目
+bug_middle：中威胁漏洞数目
+bug_low：低威胁漏洞数目
+bugDetailList：漏洞详细信息列表
+bugno：bug编号
+bug_origin：漏洞来源
+bug_releasetime：发布时间
+bug_typename：漏洞类型名
+bug_typeurl：漏洞类型链接
+bug_level：严重等级
+bug_score：评分分数
+basicscore：cvss2.0基本评分
+availabilityscore：cvss2.0可利用性评分
+impactscore：cvss2.0影响评分
+triggerflag：是否为可触发漏洞标识
+bug_url：漏洞链接
+bug_scoreurl：漏洞评分链接
+bug_description：描述
+basicscore3：cvss3.0基本评分
+availabilityscore3：cvss3.0可利用性评分
+impactscore3：cvss3.0影响评分
+triggerpath：可触发漏洞路径
+triggerline：漏洞处罚行号
+bug_fix_time：修复时间
+bug_fix_version：修复版本
+*/
+{
+    "id":"01", //id 如果是扫描母体，直接返回母体id,如果是扫描子体，直接返回子体id
+    "action":"static",
+    "moduleSet": [
+        "okular#17.12.2"
+      ],
+      "bugSetHigh": ["CVE-2019-1000801"],
+      "bugSetMiddle": [
+        "CVE-2018-1000801"
+      ],
+      "bugSetLow": [],
+      "moduleList": [
+        {
+          "module_name": "okular",
+          "module_version": "17.12.2",
+          "module_bugcount": 1,
+          "bug_high": 0,
+          "bug_middle": 1,
+          "bug_low": 0,
+          "bugDetailList": [
+            {
+              "bugno": "CVE-2018-1000801",
+              "bug_origin": "NVD",
+              "bug_releasetime": "2018-09-06 10:29:00",
+              "bug_typename": "CWE-22",
+              "bug_typeurl": "http://cwe.mitre.org/data/definitions/22.html",
+              "bug_level": "2",
+              "bug_score": 4.3,
+              "basicscore": 4.3,
+              "availabilityscore": 8.6,
+              "impactscore": 2.9,
+              "triggerflag": "",
+              "bug_url": "http://cve.mitre.org/cgi-bin/cvename.cgi?name\u003dCVE-2018-1000801",
+              "bug_scoreurl": "https://nvd.nist.gov/vuln/detail/CVE-2018-1000801",
+              "bug_description": "okular version 18.08 and earlier contains a Directory Traversal vulnerability in function \"unpackDocumentArchive(...)\" in \"core/document.cpp\" that can result in Arbitrary file creation on the user workstation. This attack appear to be exploitable via he victim must open a specially crafted Okular archive. This issue appears to have been corrected in version 18.08.1",
+              "basicscore3": 0.0,
+              "availabilityscore3": 1.8,
+              "impactscore3": 3.6,
+              "triggerpath": "",
+              "triggerline": "",
+              "bug_fix_time": "",
+              "bug_fix_version": ""
+            }
+          ]
+        }
+      ]
+}
+
+//=================== E N D ================================
+
+//=========================================================
+//===========3.网络协议模糊测试接口=============================
+//工作流程: 两次交互，第一次WEB服务器指示work服务器开始模糊测试，
+//第二次work服务器启动漏洞扫描工作后向WEB服务器告知已经开始模糊测试了
+//==============第一次交互===============================
+//web服务器向work服务器 http://workip:port/dispatch/networkfuzz
+//通过POST方法 发送如下请求
+{
+    "id":"01", //标识任务id
+    "action":"networkfuzz", //动作字段，用于标识网络模糊测试
+    "proc_path": "c:/users/xxx/desktop/test.exe", //标识待测程序在系统中的绝对路径，以指示监控组件启动待测服务程序
+    "target_ip": "127.0.0.1", //待测试的服务程序ip
+    "target_port": "69", //待测试的服务程序端口
+    "protocol": "ftp", //用于标识是否使用协议模板
+    "load": "udp", //用于指示承载协议是udp还是tcp
+}
+// 正常 成功的响应如下:
+{
+    "id":"01", //标识任务id
+    "action":"networkfuzz", //动作字段，用于标识网络模糊测试
+    "status": "1"//标识准确收到WEB提供的网络协议模糊测试接口
+}
+
+//==============第二次交互===============================
+//work服务器向web服务器接口 http://webip:port/api/ReceiveData/NetworkBasic
+//通过POST方法 发送如下请求
+{
+    "id":"01", //标识任务id
+    "action":"networkfuzz", //动作字段，用于标识网络模糊测试
+    "token":"test_token", //用于鉴权
+    "basic_url": "http://workip:port/fuzz_status.html" //标识网络协议模糊测试 自带的WEB管理界面，现在提供用于调试
+}
+// WEB 服务器即时回复响应
+//正常 成功的响应如下
+{
+    "token":"test_token",
+    "info":"ok"
+}
+
+//=================== E N D ================================
+// 在后面添加
+
+
+//=========================================================
+//===========4.污点分析接口=============================
+//工作流程：两次交互，第一次WEB服务器指示业务服务器开始静态漏洞扫描，第二次业务服务器完成漏洞扫描工作后向WEB服务器提交扫描后的结果
+//第一次交互:以web向work服务器主动发起请求开始，work即时回复响应结束
+//第二次交互:以work服务器主动发起请求开始，web即时回复响应结束
+//==============第一次交互===============================
+// web->work  web向work服务器接口 http://workip:port/dispatch/taint
+// 通过POST方法 发送请求，请求有扫描母体和扫描子体两种。
+// 下面是扫描母体的请求
+{
+    "id":"01", //任务id
+    "action":"taint", //指示业务服务器开始进行静态扫描
+    "proc_path": "c:/users/xxx/desktop/test.exe", //标识待测程序在系统中的绝对路径，以指示监控组件启动待测服务程序
+    "target_ip": "127.0.0.1", //待测试的服务程序ip
+}
+
+{
+    "id":"01", //标识任务id
+    "action":"networkfuzz", //动作字段，用于标识网络模糊测试
+    "proc_path": "c:/users/xxx/desktop/test.exe", //标识待测程序在系统中的绝对路径，以指示监控组件启动待测服务程序
+    "target_ip": "127.0.0.1", //待测试的服务程序ip
+    "target_port": "69", //待测试的服务程序端口
+    "protocol": "ftp", //用于标识是否使用协议模板
+    "load": "udp", //用于指示承载协议是udp还是tcp
+}
+//下面是扫描子体的请求
+{
+    "id": "01", //
+    "action":"static", //指示业务服务器开始进行静态扫描
+    "target": [
+        {
+            "fId": "01-1", //子体ID
+            "fPath": "c:/123.exe"
+        },
+        {
+            "fId": "01-2", //子体ID
+            "fPath": "c:/123.dll"
+        }
+    ]
+}
+// 正常 成功的响应如下
+{
+    "id":"01",
+    "action":"static", //对应静态扫描的动作
+    "status":"1", //开始进行扫描
+}
+//==============第二次交互===============================
+//work->web 静态扫描完成后，业务服务器向WEB服务器反馈结果
+//work服务器向 web接口地址：http://webip:port/api/ReceiveData/ScanData
+//通过POST方法 发送如下请求
+/* 各个字段解释如下
+moduleSet：被测项目包含的组件名称列表
+bugSetHigh：被测项目包含的高威胁漏洞列表
+bugSetMiddle：被测项目包含的中威胁漏洞列表
+bugSetLow：被测项目包含的低威胁漏洞列表
+moduleList：被测项目包含的组件列表详细信息
+module_name：组件名称
+module_version：组件版本
+module_bugcount：组件漏洞数目
+bug_high：高威胁漏洞数目
+bug_middle：中威胁漏洞数目
+bug_low：低威胁漏洞数目
+bugDetailList：漏洞详细信息列表
+bugno：bug编号
+bug_origin：漏洞来源
+bug_releasetime：发布时间
+bug_typename：漏洞类型名
+bug_typeurl：漏洞类型链接
+bug_level：严重等级
+bug_score：评分分数
+basicscore：cvss2.0基本评分
+availabilityscore：cvss2.0可利用性评分
+impactscore：cvss2.0影响评分
+triggerflag：是否为可触发漏洞标识
+bug_url：漏洞链接
+bug_scoreurl：漏洞评分链接
+bug_description：描述
+basicscore3：cvss3.0基本评分
+availabilityscore3：cvss3.0可利用性评分
+impactscore3：cvss3.0影响评分
+triggerpath：可触发漏洞路径
+triggerline：漏洞处罚行号
+bug_fix_time：修复时间
+bug_fix_version：修复版本
+*/
+{
+    "id":"01", //id 如果是扫描母体，直接返回母体id,如果是扫描子体，直接返回子体id
+    "action":"static",
+    "moduleSet": [
+        "okular#17.12.2"
+      ],
+      "bugSetHigh": ["CVE-2019-1000801"],
+      "bugSetMiddle": [
+        "CVE-2018-1000801"
+      ],
+      "bugSetLow": [],
+      "moduleList": [
+        {
+          "module_name": "okular",
+          "module_version": "17.12.2",
+          "module_bugcount": 1,
+          "bug_high": 0,
+          "bug_middle": 1,
+          "bug_low": 0,
+          "bugDetailList": [
+            {
+              "bugno": "CVE-2018-1000801",
+              "bug_origin": "NVD",
+              "bug_releasetime": "2018-09-06 10:29:00",
+              "bug_typename": "CWE-22",
+              "bug_typeurl": "http://cwe.mitre.org/data/definitions/22.html",
+              "bug_level": "2",
+              "bug_score": 4.3,
+              "basicscore": 4.3,
+              "availabilityscore": 8.6,
+              "impactscore": 2.9,
+              "triggerflag": "",
+              "bug_url": "http://cve.mitre.org/cgi-bin/cvename.cgi?name\u003dCVE-2018-1000801",
+              "bug_scoreurl": "https://nvd.nist.gov/vuln/detail/CVE-2018-1000801",
+              "bug_description": "okular version 18.08 and earlier contains a Directory Traversal vulnerability in function \"unpackDocumentArchive(...)\" in \"core/document.cpp\" that can result in Arbitrary file creation on the user workstation. This attack appear to be exploitable via he victim must open a specially crafted Okular archive. This issue appears to have been corrected in version 18.08.1",
+              "basicscore3": 0.0,
+              "availabilityscore3": 1.8,
+              "impactscore3": 3.6,
+              "triggerpath": "",
+              "triggerline": "",
+              "bug_fix_time": "",
+              "bug_fix_version": ""
+            }
+          ]
+        }
+      ]
+}
+
+//=================== E N D ================================
+
+
