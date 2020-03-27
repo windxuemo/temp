@@ -14,4 +14,3 @@ client.send('dddd'.encode())
 #get some data
 # response = client.recv(4096)
 
-
